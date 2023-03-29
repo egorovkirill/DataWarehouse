@@ -4,6 +4,5 @@ logs
 plugins
 airflow.cfg
 dags/__pycache__
-
 vertica_data/vertica/config
 vertica_data/vertica/VMart

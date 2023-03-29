@@ -1,46 +1,41 @@
 import datetime as dt
 import pandas as pd
+import psycopg2
 from airflow import DAG
 from airflow.operators.python import PythonOperator
-from airflow.providers.postgres.hooks.postgres import PostgresHook
 import vertica_python
 
 default_args = {
     'owner': 'airflow',
     'start_date': dt.datetime(2023, 3, 29),
     'retries': 0,
-    'retry_delay': dt.timedelta(minutes=5)
+    'schedule_interval': None
 }
 
 def extract_data_from_postgres(**kwargs):
-    pg_hook = PostgresHook(postgres_conn_id='1234124124124142')
-    conn = pg_hook.get_conn()
+    postgres_credentials = {
+        'host': 'postgres',
+        'dbname': 'airflow',
+        'user': 'airflow',
+        'password': 'airflow',
+        'port': '5432',
+    }
+    conn = psycopg2.connect(**postgres_credentials)
     cursor = conn.cursor()
-    query = 'SELECT * FROM "{table_name}"'
-    table_list = ['categories','customer_customer_demo','customer_demographics','customers','employees','employee_territories','products','shippers','suppliers','region','territories','us_states']
+    query = "SELECT column_name FROM information_schema.columns WHERE table_name=%s"
+    table_list = ['categories','customer_customer_demo','customer_demographics','customers','employees','orders','order_details','employee_territories','products','shippers','suppliers','region','territories','us_states']
     extracted_data = {}
-    fetch_size = 10000
     for table in table_list:
-        cursor.execute(query.format(table_name=table))
-        columns = {desc[0]: (desc[1], desc[3]) for desc in cursor.description}
-
-        data_chunks = []
-        while True:
-            rows = cursor.fetchmany(fetch_size)
-            if not rows:
-                break
-
-            df = pd.DataFrame(rows, columns=[col for col in columns])
-            data_chunks.append(df.to_dict(orient='records'))
-
+        cursor.execute(query, (table,))
+        columns = [desc[0] for desc in cursor.fetchall()]
         extracted_data[table] = {
-            'data': [record for chunk in data_chunks for record in chunk],
-            'columns': columns
+            'columns': {col_name: None for col_name in columns}
         }
+    conn.close()
     kwargs['ti'].xcom_push(key='extracted_data', value=extracted_data)
 
 def create_schema_if_not_exists(**kwargs):
-    schema_name = 'Data Layer'
+    schema_name = 'Staging Area'
     vertica_conn_info = {
         'host': 'vertica',
         'port': 5433,
@@ -81,7 +76,7 @@ def create_tables_in_vertica(**kwargs):
             columns = table_data['columns']
 
             # Build the CREATE TABLE statement
-            create_table_stmt = f'CREATE TABLE IF NOT EXISTS "Data Layer"."{table}" (\n'
+            create_table_stmt = f'CREATE TABLE IF NOT EXISTS "Staging Area"."{table}" (\n'
             column_definitions = []
             for col_name, col_type_length in columns.items():
                 if col_type_length is not None:
@@ -98,33 +93,8 @@ def create_tables_in_vertica(**kwargs):
             # Execute the statement
             cur.execute(create_table_stmt)
             conn.commit()
+        conn.close()
 
-
-def load_data_to_vertica(**kwargs):
-    extracted_data = kwargs['ti'].xcom_pull(key='extracted_data')
-    vertica_conn_info = {
-        'host': 'vertica',
-        'port': 5433,
-        'user': 'dbadmin',
-    }
-
-    with vertica_python.connect(**vertica_conn_info) as conn:
-        cur = conn.cursor()
-
-        for table, table_data in extracted_data.items():
-            rows = table_data['data']
-            columns = table_data['columns']
-
-            if len(rows) > 0:
-                column_names = ', '.join(['"' + col + '"' for col in columns])
-                placeholders = ', '.join(['%s'] * len(columns))
-                insert_query = f'INSERT INTO "Data Layer"."{table}" ({column_names}) VALUES ({placeholders})'
-                
-                for row in rows:
-                    values = [row[col] for col in columns]
-                    cur.execute(insert_query, tuple(values))
-
-                conn.commit()
 
 with DAG('etl_postgres_to_vertica',
 default_args=default_args,
@@ -149,10 +119,4 @@ max_active_runs=1) as dag:
     provide_context=True
     )
 
-    load_data_to_vertica = PythonOperator(
-    task_id='load_data_to_vertica',
-    python_callable=load_data_to_vertica,
-    provide_context=True
-    )
-
-extract_data_from_postgres >> create_schema_if_not_exists >> create_tables_in_vertica >>  load_data_to_vertica
+extract_data_from_postgres >> create_schema_if_not_exists >> create_tables_in_vertica
