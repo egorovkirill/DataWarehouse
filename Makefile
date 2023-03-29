@@ -5,6 +5,7 @@ build:
 down:
 	docker-compose down
 	rm -r db/.database
+	rm -r vertica_data/vertica
 	
 hash:
 	docker-compose run migrate migrate hash

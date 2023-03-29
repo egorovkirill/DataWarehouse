@@ -1,0 +1,4 @@
+airflow
+vertica-python
+airflow.operators.python_operator
+airflow.providers.postgres.hooks.postgres

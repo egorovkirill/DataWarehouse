@@ -1,0 +1,16 @@
+FROM apache/airflow:2.5.2-python3.8
+
+
+COPY requirements.txt .
+
+# Copy the entrypoint script
+COPY entrypoint.sh /entrypoint.sh
+
+# Set the entrypoint script as the entrypoint
+ENTRYPOINT ["/entrypoint.sh"]
+
+RUN pip install --no-cache-dir psycopg2-binary
+RUN pip install --no-cache-dir apache-airflow
+RUN pip install --no-cache-dir vertica-python
+RUN pip install --no-cache-dir apache-airflow-providers-postgres
+RUN pip install --no-cache-dir pandas
