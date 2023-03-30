@@ -6,6 +6,7 @@ down:
 	docker-compose down
 	rm -r db/.database
 	rm -r vertica_data/vertica
+	rm -r dags/__pycache__
 	
 hash:
 	docker-compose run migrate migrate hash

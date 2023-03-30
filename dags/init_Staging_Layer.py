@@ -4,10 +4,9 @@ import psycopg2
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 import vertica_python
-
 default_args = {
     'owner': 'airflow',
-    'start_date': dt.datetime(2023, 3, 29),
+    'start_date': dt.datetime(2023, 3, 30),
     'retries': 0,
     'schedule_interval': None
 }
@@ -35,7 +34,7 @@ def extract_data_from_postgres(**kwargs):
     kwargs['ti'].xcom_push(key='extracted_data', value=extracted_data)
 
 def create_schema_if_not_exists(**kwargs):
-    schema_name = 'Staging Area'
+    schema_name = 'Staging_Layer'
     vertica_conn_info = {
         'host': 'vertica',
         'port': 5433,
@@ -76,7 +75,7 @@ def create_tables_in_vertica(**kwargs):
             columns = table_data['columns']
 
             # Build the CREATE TABLE statement
-            create_table_stmt = f'CREATE TABLE IF NOT EXISTS "Staging Area"."{table}" (\n'
+            create_table_stmt = f'CREATE TABLE IF NOT EXISTS "Staging_Layer"."{table}" (\n'
             column_definitions = []
             for col_name, col_type_length in columns.items():
                 if col_type_length is not None:
@@ -87,7 +86,7 @@ def create_tables_in_vertica(**kwargs):
                     column_definitions.append(f'"{col_name}" {vertica_col_type}')
                 else:
                     # Handle missing data type by setting a default data type
-                    column_definitions.append(f'"{col_name}" VARCHAR(255)')
+                    column_definitions.append(f'"{col_name}" VARCHAR(400)')
             create_table_stmt += ',\n'.join(column_definitions) + '\n);'
 
             # Execute the statement
