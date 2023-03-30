@@ -4,7 +4,6 @@ from vertica_python import connect
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 from airflow.utils.dates import days_ago
-import time
 
 default_args = {
     'owner': 'airflow',
@@ -57,7 +56,6 @@ def mergeout_table(table):
 def mergeout_vertica():
     for table in tables:
         mergeout_table(f"Staging_Layer.{table}")
-        time.sleep(5)
 
 mergeout_vertica_task = PythonOperator(
     task_id='mergeout_vertica',
@@ -80,35 +78,37 @@ def load_data_from_postgres_to_vertica():
 
     # Connect to the PostgreSQL database
     with psycopg2.connect(**postgres_conn_info) as pg_conn:
-            pg_cur = pg_conn.cursor()
+        pg_cur = pg_conn.cursor()
 
-            # Connect to the Vertica database
-            with connect(**vertica_conn_info) as vert_conn:
-                vert_cur = vert_conn.cursor()
+        # Connect to the Vertica database
+        with connect(**vertica_conn_info) as vert_conn:
+            vert_cur = vert_conn.cursor()
 
-                for table in tables:
-                    unique_id_column = unique_id_columns[table]
+            for table in tables:
+                unique_id_column = unique_id_columns[table]
 
-                    vert_cur.execute(f"SELECT MAX({unique_id_column}) FROM Staging_Layer.{table};")
-                    max_id = vert_cur.fetchone()[0]
+                vert_cur.execute(f"SELECT MAX({unique_id_column}) FROM Staging_Layer.{table};")
+                max_id = vert_cur.fetchone()[0]
 
-                    if max_id is None:
-                        max_id = 0
+                if max_id is None:
+                    max_id = 0
 
-                    
-                    pg_cur.execute(f"SELECT * FROM {table} WHERE {unique_id_column} > {max_id} ORDER BY {unique_id_column} LIMIT {batch_size};")
-                    data = pg_cur.fetchall()
+                pg_cur.execute(f"SELECT * FROM {table} WHERE {unique_id_column} > {max_id} ORDER BY {unique_id_column} LIMIT {batch_size};")
+                data = pg_cur.fetchall()
 
-                    if not data:
-                        break
+                if not data:
+                    break
 
-                    columns = [desc[0] for desc in pg_cur.description]
-                    insert_query = f"INSERT INTO Staging_Layer.{table} ({', '.join(columns)}) VALUES ({', '.join(['%s'] * len(columns))});"
+                columns = [desc[0] for desc in pg_cur.description]
+                insert_query = f"INSERT INTO Staging_Layer.{table} ({', '.join(columns)}) VALUES ({', '.join(['%s'] * len(columns))});"
 
-                    for row in data:
-                        vert_cur.execute(insert_query, row)
-                        vert_conn.commit()
-                    max_id = data[-1][0]
+                # Use executemany() to insert all rows in the data list at once
+                vert_cur.executemany(insert_query, data)
+
+                # Commit after executing all inserts
+                vert_conn.commit()
+
+                max_id = data[-1][0]
                         
 
 load_data_task = PythonOperator(
