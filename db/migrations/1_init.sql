@@ -82,7 +82,7 @@ CREATE TABLE orders (
     order_date character varying(15),
     required_date character varying(15),
     shipped_date character varying(15),
-    ship_via int,
+    shipper_id int,
     freight real,
     ship_name character varying(100),
     ship_address character varying(60),
@@ -148,12 +148,6 @@ CREATE TABLE territories (
 );
 
 
-CREATE TABLE us_states (
-    state_id int GENERATED ALWAYS AS IDENTITY NOT NULL,
-    state_name character varying(100),
-    state_abbr character varying(2)
-);
-
 
 ALTER TABLE ONLY categories
     ADD CONSTRAINT pk_categories PRIMARY KEY (category_id);
@@ -195,8 +189,6 @@ ALTER TABLE ONLY territories
     ADD CONSTRAINT pk_territories PRIMARY KEY (territory_id);
 
 
-ALTER TABLE ONLY us_states
-    ADD CONSTRAINT pk_usstates PRIMARY KEY (state_id);
 
 ALTER TABLE ONLY orders
     ADD CONSTRAINT fk_orders_customers FOREIGN KEY (customer_id) REFERENCES customers;
@@ -206,7 +198,7 @@ ALTER TABLE ONLY orders
     ADD CONSTRAINT fk_orders_employees FOREIGN KEY (employee_id) REFERENCES employees;
 
 ALTER TABLE ONLY orders
-    ADD CONSTRAINT fk_orders_shippers FOREIGN KEY (ship_via) REFERENCES shippers;
+    ADD CONSTRAINT fk_orders_shippers FOREIGN KEY (shipper_id) REFERENCES shippers;
 
 
 ALTER TABLE ONLY order_details

@@ -103,7 +103,7 @@ async function generateOrdersData(client) {
         order_date: Math.floor(Date.now() / 1000),
         required_date: moment(faker.date.soon()).unix(),
         shipped_date:  moment(faker.date.soon()).unix(),
-        ship_via: await getRandomValue(client, 'shippers', 'shipper_id'),
+        shipper_id: await getRandomValue(client, 'shippers', 'shipper_id'),
         freight: faker.datatype.number(),
         ship_name: faker.company.companyName(),
         ship_address: faker.address.streetAddress(),
@@ -170,14 +170,6 @@ function generateSuppliersData() {
 
 
 
-function generateUsStatesData() {
-    return {
-        state_name: faker.address.state(),
-        state_abbr: faker.address.stateAbbr(),
-    };
-}
-
-
 async function defaultFunction(client) {
 
     const categoriesData = Array.from({ length: 40 }, generateCategoriesData);
@@ -190,15 +182,6 @@ async function defaultFunction(client) {
         };
 
 
-    
-    const statesData = Array.from({ length: 50 }, generateUsStatesData);
-    for (const states of statesData) {
-        const values = Object.values(states);
-        await client.query(
-            'INSERT INTO us_states (state_name, state_abbr) VALUES ($1, $2)',
-            values
-        );
-    };
 
     const regionData = Array.from({ length: 100 }, generateRegionData);
         for (const region of regionData) {
@@ -308,7 +291,7 @@ while (true) {
       await client.query('BEGIN');
       try {
         const orderResult = await client.query(
-          'INSERT INTO orders (customer_id, employee_id, order_date, required_date, shipped_date, ship_via, freight, ship_name, ship_address, ship_city, ship_region, ship_postal_code, ship_country) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING order_id',
+          'INSERT INTO orders (customer_id, employee_id, order_date, required_date, shipped_date, shipper_id, freight, ship_name, ship_address, ship_city, ship_region, ship_postal_code, ship_country) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING order_id',
           values
         );
         const orderId = orderResult.rows[0].order_id;

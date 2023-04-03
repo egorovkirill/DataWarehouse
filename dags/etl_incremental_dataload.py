@@ -18,7 +18,7 @@ dag = DAG(
     'postgres_to_vertica',
     default_args=default_args,
     description='Load data from PostgreSQL to Vertica',
-    schedule_interval=timedelta(minutes=1),
+    schedule_interval='@once',
     start_date=days_ago(0),
     catchup=False
 )
@@ -29,7 +29,7 @@ vertica_conn_info = {
         'user': 'dbadmin',
     }
 
-tables = ['categories', 'customer_customer_demo', 'customer_demographics', 'customers', 'employees', 'orders', 'order_details', 'employee_territories', 'products', 'shippers', 'suppliers', 'region', 'territories', 'us_states']
+tables = ['categories', 'customer_customer_demo', 'customer_demographics', 'customers', 'employees', 'employee_territories', 'products', 'shippers', 'suppliers', 'region', 'territories','orders', 'order_details']
 unique_id_columns = {
 'categories': 'category_id',
 'customer_customer_demo': 'customer_id',
@@ -44,7 +44,6 @@ unique_id_columns = {
 'suppliers': 'supplier_id',
 'region': 'region_id',
 'territories': 'territory_id',
-'us_states': 'state_id'
 }
 
 def mergeout_table(table):
@@ -80,7 +79,6 @@ def load_data_from_postgres_to_vertica():
     with psycopg2.connect(**postgres_conn_info) as pg_conn:
         pg_cur = pg_conn.cursor()
 
-        # Connect to the Vertica database
         with connect(**vertica_conn_info) as vert_conn:
             vert_cur = vert_conn.cursor()
 
@@ -93,22 +91,20 @@ def load_data_from_postgres_to_vertica():
                 if max_id is None:
                     max_id = 0
 
-                pg_cur.execute(f"SELECT * FROM {table} WHERE {unique_id_column} > {max_id} ORDER BY {unique_id_column} LIMIT {batch_size};")
-                data = pg_cur.fetchall()
+                while True:
+                    pg_cur.execute(f"SELECT * FROM {table} WHERE {unique_id_column} > {max_id} ORDER BY {unique_id_column} LIMIT {batch_size};")
+                    data = pg_cur.fetchall()
 
-                if not data:
-                    break
+                    if not data:
+                        break
 
-                columns = [desc[0] for desc in pg_cur.description]
-                insert_query = f"INSERT INTO Staging_Layer.{table} ({', '.join(columns)}) VALUES ({', '.join(['%s'] * len(columns))});"
+                    columns = [desc[0] for desc in pg_cur.description]
+                    insert_query = f"INSERT INTO Staging_Layer.{table} ({', '.join(columns)}) VALUES ({', '.join(['%s'] * len(columns))});"
 
-                # Use executemany() to insert all rows in the data list at once
-                vert_cur.executemany(insert_query, data)
+                    vert_cur.executemany(insert_query, data)
+                    vert_conn.commit()
 
-                # Commit after executing all inserts
-                vert_conn.commit()
-
-                max_id = data[-1][0]
+                    max_id = data[-1][0]
                         
 
 load_data_task = PythonOperator(
