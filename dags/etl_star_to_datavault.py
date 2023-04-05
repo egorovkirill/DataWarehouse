@@ -82,7 +82,18 @@ def transform_data(row, record_source):
 
 def migrate_data(source_table, dest_table, select, insert, join_on=None, join_on2=None, join_condition=None, source_table2=None, source_table3=None):
     with vertica_python.connect(**vertica_conn_info) as source_conn:
+        if not join_on:
+            unique_id_column = select[0]
+        if join_on:
+            unique_id_column = insert[0]
+        dest_cursor = source_conn.cursor()
+        dest_cursor.execute(f"SELECT MAX({unique_id_column}) FROM {dest_table}")
+        max_unique_id = dest_cursor.fetchone()[0]
+
+        # Modify the source query to include the WHERE clause for incremental loading
         source_query = f'SELECT {", ".join(select)} FROM {source_table}'
+        join_sttmnt = f' WHERE {source_table}.{unique_id_column} > {max_unique_id if max_unique_id else 0}'
+
         
         if join_on:
             join_on_source, join_on_dest = join_on
@@ -90,6 +101,7 @@ def migrate_data(source_table, dest_table, select, insert, join_on=None, join_on
         if source_table3 and join_condition and join_on and join_on2:
             join_on_source2, join_on_dest2 = join_on2
             source_query += f' JOIN {source_table3} ON {source_table2}.{join_on_source2} = {source_table3}.{join_on_dest2}'
+        source_query += join_sttmnt
         print(source_query)
 
 
@@ -102,7 +114,7 @@ def migrate_data(source_table, dest_table, select, insert, join_on=None, join_on
                 dest_query = f"INSERT INTO {dest_table} ({', '.join(select + ['from_date', 'record_source'])}) VALUES ({', '.join(['%s'] * (len(select) + 2))})"
             print(dest_query)
             with source_conn.cursor() as dest_cursor:
-                batch_size = 3000
+                batch_size = 30000
                 batch = []
 
                 for row in source_cursor.iterate():
@@ -117,6 +129,8 @@ def migrate_data(source_table, dest_table, select, insert, join_on=None, join_on
                 if batch:
                     dest_cursor.executemany(dest_query, batch)
                     source_conn.commit()
+
+                    
 def migrate_all_data():
     for mapping in table_mappings:
         if len(mapping) == 3:
