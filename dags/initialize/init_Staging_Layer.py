@@ -11,6 +11,11 @@ default_args = {
     'schedule_interval': None
 }
 
+vertica_conn_info = {
+        'host': 'vertica',
+        'port': 5433,
+        'user': 'dbadmin',
+    }
 def extract_data_from_postgres(**kwargs):
     postgres_credentials = {
         'host': 'postgres',
@@ -152,11 +157,7 @@ table_schemas = {
          
 def create_schema_if_not_exists(**kwargs):
     schema_name = 'Staging_Layer'
-    vertica_conn_info = {
-        'host': 'vertica',
-        'port': 5433,
-        'user': 'dbadmin',
-    }
+    
 
     with vertica_python.connect(**vertica_conn_info) as conn:
         cur = conn.cursor()
@@ -203,6 +204,18 @@ def create_tables_in_vertica(**kwargs):
             conn.commit()
         conn.close()
 
+tables = ['categories', 'customer_customer_demo', 'customer_demographics', 'customers', 'employees', 'employee_territories', 'products', 'shippers', 'suppliers', 'region', 'territories','orders', 'order_details']
+
+def mergeout_table(table):
+    with vertica_python.connect(**vertica_conn_info) as vert_conn:
+        vert_cur = vert_conn.cursor()
+        vert_cur.execute(f"SELECT do_tm_task('mergeout', '{table}');")
+        vert_conn.commit()
+
+def mergeout_vertica():
+    for table in tables:
+        mergeout_table(f"Staging_Layer.{table}")
+
 
 with DAG('init_staging_layer',
 default_args=default_args,
@@ -227,4 +240,10 @@ max_active_runs=1) as dag:
     provide_context=True
     )
 
-extract_data_from_postgres >> create_schema_if_not_exists >> create_tables_in_vertica
+    mergeout_vertica_task = PythonOperator(
+    task_id='mergeout_vertica',
+    python_callable=mergeout_vertica,
+    provide_context=True
+    )
+
+extract_data_from_postgres >> create_schema_if_not_exists >> create_tables_in_vertica >> mergeout_vertica_task

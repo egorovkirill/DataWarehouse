@@ -18,9 +18,10 @@ dag = DAG(
     'postgres_to_vertica',
     default_args=default_args,
     description='Load data from PostgreSQL to Vertica',
-    schedule_interval='@once',
+    schedule_interval=timedelta(seconds=10),
     start_date=days_ago(0),
-    catchup=False
+    catchup=False,
+    max_active_runs=1
 )
 
 vertica_conn_info = {
@@ -46,21 +47,7 @@ unique_id_columns = {
 'territories': 'territory_id',
 }
 
-def mergeout_table(table):
-    with connect(**vertica_conn_info) as vert_conn:
-        vert_cur = vert_conn.cursor()
-        vert_cur.execute(f"SELECT do_tm_task('mergeout', '{table}');")
-        vert_conn.commit()
 
-def mergeout_vertica():
-    for table in tables:
-        mergeout_table(f"Staging_Layer.{table}")
-
-mergeout_vertica_task = PythonOperator(
-    task_id='mergeout_vertica',
-    python_callable=mergeout_vertica,
-    dag=dag
-)
 
 def load_data_from_postgres_to_vertica():
     batch_size = 100000
@@ -91,20 +78,20 @@ def load_data_from_postgres_to_vertica():
                 if max_id is None:
                     max_id = 0
 
-                while True:
-                    pg_cur.execute(f"SELECT * FROM {table} WHERE {unique_id_column} > {max_id} ORDER BY {unique_id_column} LIMIT {batch_size};")
-                    data = pg_cur.fetchall()
+                
+                pg_cur.execute(f"SELECT * FROM {table} WHERE {unique_id_column} > {max_id} ORDER BY {unique_id_column} LIMIT {batch_size};")
+                data = pg_cur.fetchall()
 
-                    if not data:
-                        break
+                if not data:
+                    continue
 
-                    columns = [desc[0] for desc in pg_cur.description]
-                    insert_query = f"INSERT INTO Staging_Layer.{table} ({', '.join(columns)}) VALUES ({', '.join(['%s'] * len(columns))});"
+                columns = [desc[0] for desc in pg_cur.description]
+                insert_query = f"INSERT INTO Staging_Layer.{table} ({', '.join(columns)}) VALUES ({', '.join(['%s'] * len(columns))});"
 
-                    vert_cur.executemany(insert_query, data)
-                    vert_conn.commit()
+                vert_cur.executemany(insert_query, data)
+                vert_conn.commit()
 
-                    max_id = data[-1][0]
+                max_id = data[-1][0]
                         
 
 load_data_task = PythonOperator(
@@ -113,4 +100,4 @@ load_data_task = PythonOperator(
     dag=dag
 )
 
-mergeout_vertica_task >> load_data_task
+load_data_task

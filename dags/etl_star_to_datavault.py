@@ -10,7 +10,6 @@ from airflow.utils.dates import days_ago
 
 default_args = {
     'owner': 'airflow',
-    'start_date': dt.datetime(2023, 3, 30),
     'retries': 0,
     'schedule_interval': None
 }
@@ -19,9 +18,10 @@ dag = DAG(
     'migrate_data',
     default_args=default_args,
     description='Load data from PostgreSQL to Vertica',
-    schedule_interval='@once',
+    schedule_interval=timedelta(seconds=10),
     start_date=days_ago(0),
-    catchup=False
+    catchup=False,
+    max_active_runs=1
 )
 
 vertica_conn_info = {
@@ -71,7 +71,7 @@ satellites = [
 ]
 table_mappings = hubs + links + satellites
 
-
+batch_size = 100000
 record_source = 'source_system'
 
 def transform_data(row, record_source):
@@ -92,7 +92,7 @@ def migrate_data(source_table, dest_table, select, insert, join_on=None, join_on
 
         # Modify the source query to include the WHERE clause for incremental loading
         source_query = f'SELECT {", ".join(select)} FROM {source_table}'
-        join_sttmnt = f' WHERE {source_table}.{unique_id_column} > {max_unique_id if max_unique_id else 0}'
+        join_sttmnt = f' WHERE {source_table}.{unique_id_column} > {max_unique_id if max_unique_id else 0} ORDER BY {unique_id_column} LIMIT {batch_size}'
 
         
         if join_on:
@@ -102,7 +102,7 @@ def migrate_data(source_table, dest_table, select, insert, join_on=None, join_on
             join_on_source2, join_on_dest2 = join_on2
             source_query += f' JOIN {source_table3} ON {source_table2}.{join_on_source2} = {source_table3}.{join_on_dest2}'
         source_query += join_sttmnt
-        print(source_query)
+
 
 
         with source_conn.cursor() as source_cursor:
@@ -112,9 +112,7 @@ def migrate_data(source_table, dest_table, select, insert, join_on=None, join_on
                 dest_query = f"INSERT INTO {dest_table} ({', '.join(insert + ['from_date', 'record_source'])}) VALUES ({', '.join(['%s'] * (len(select) + 2))})"
             else:
                 dest_query = f"INSERT INTO {dest_table} ({', '.join(select + ['from_date', 'record_source'])}) VALUES ({', '.join(['%s'] * (len(select) + 2))})"
-            print(dest_query)
             with source_conn.cursor() as dest_cursor:
-                batch_size = 30000
                 batch = []
 
                 for row in source_cursor.iterate():

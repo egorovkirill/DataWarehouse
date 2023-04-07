@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<yandex>
+    <mark_cache_size>5368709120</mark_cache_size>
+    <listen_host>0.0.0.0</listen_host>
+    <http_port>8123</http_port>
+    <tcp_port>9000</tcp_port>
+
+    <path>/var/lib/clickhouse/</path>
+    <tmp_path>/var/lib/clickhouse/tmp/</tmp_path>
+    <user_files_path>/var/lib/clickhouse/user_files/</user_files_path>
+    <user_scripts_path>/var/lib/clickhouse/user_scripts/</user_scripts_path>
+    <metadata_path>/var/lib/clickhouse/metadata/</metadata_path>
+
+    <logger>
+        <log>/var/log/clickhouse-server/clickhouse-server.log</log>
+        <errorlog>/var/log/clickhouse-server/clickhouse-server.err.log</errorlog>
+        <level>trace</level>
+        <size>1000M</size>
+        <count>10</count>
+    </logger>
+
+    <query_log>
+        <database>system</database>
+        <table>query_log</table>
+        <flush_interval_milliseconds>7500</flush_interval_milliseconds>
+    </query_log>
+    <query_thread_log>
+        <database>system</database>
+        <table>query_thread_log</table>
+        <flush_interval_milliseconds>7500</flush_interval_milliseconds>
+    </query_thread_log>
+
+    <users_config>/etc/clickhouse-server/users.xml</users_config>
+
+    <max_connections>4096</max_connections>
+</yandex>

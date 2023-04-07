@@ -6,3 +6,5 @@ airflow.cfg
 dags/__pycache__
 vertica_data/vertica/config
 vertica_data/vertica/VMart
+clickhouse_data/
+clickhouse_log/

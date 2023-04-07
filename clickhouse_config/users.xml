@@ -1,0 +1,24 @@
+<yandex>
+    <profiles>
+        <default>
+            <!-- Add your desired settings for the default profile here -->
+        </default>
+    </profiles>
+
+    <users>
+        <default>
+            <profile>default</profile>
+            <password></password>
+            <networks>
+                <ip>::/0</ip>
+            </networks>
+            <quota>default</quota>
+        </default>
+    </users>
+
+    <quotas>
+        <default>
+            <!-- Add your desired settings for the default quota here -->
+        </default>
+    </quotas>
+</yandex>

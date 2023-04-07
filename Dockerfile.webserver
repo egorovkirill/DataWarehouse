@@ -9,6 +9,7 @@ COPY entrypoint.sh /entrypoint.sh
 # Set the entrypoint script as the entrypoint
 ENTRYPOINT ["/entrypoint.sh"]
 
+RUN pip install clickhouse-driver[lz4]
 RUN pip install --no-cache-dir psycopg2-binary
 RUN pip install --no-cache-dir pyodbc
 RUN pip install --no-cache-dir apache-airflow
