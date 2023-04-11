@@ -1,6 +1,5 @@
-# airflow-northwind
 # About
-A basic template for using Airflow + Postgres. \
+A basic template for using Airflow + Postgres + Vertica + Clickhouse + Superset. \
 Northwind dataset is used as data.
 
 # Postgres Schema
