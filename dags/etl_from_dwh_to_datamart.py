@@ -2,6 +2,8 @@ from airflow import DAG
 from airflow.operators.python import PythonOperator
 from airflow.utils.dates import days_ago
 from datetime import datetime
+from datetime import timedelta
+
 import clickhouse_driver
 import vertica_python
 
@@ -14,7 +16,7 @@ vertica_conn_info = {
 default_args = {
     'owner': 'airflow',
     'depends_on_past': False,
-    'start_date': days_ago(1),
+    'start_date': days_ago(0),
     'retries': 1
 }
 
@@ -22,7 +24,9 @@ dag = DAG(
     'vertica_to_clickhouse_dm',
     default_args=default_args,
     description='Vertica -> clickhouse',
-    schedule_interval=None,
+    schedule_interval=timedelta(seconds=10),
+    start_date=days_ago(0),
+    catchup=False,
     max_active_runs=1)
 
 def load_data_to_clickhouse():
@@ -30,7 +34,8 @@ def load_data_to_clickhouse():
         clickhouse_cursor = conn.cursor()
         clickhouse_cursor.execute("SELECT max(order_id) FROM dm_orders")
         last_order_id = clickhouse_cursor.fetchone()[0] or 0
-        print(last_order_id)
+        print(f"Last order ID: {last_order_id}")
+
         batch_size = 100000
         with vertica_python.connect(**vertica_conn_info) as source_conn:
             vertica_cur = source_conn.cursor()
@@ -51,17 +56,23 @@ def load_data_to_clickhouse():
                 WHERE Core_Layer.s_order_ship_details.order_id > %s
                 ORDER BY Core_Layer.s_order_ship_details.order_id
                 LIMIT %s
-                """, (last_order_id, batch_size ))            
+                """, (last_order_id, batch_size))            
                 
             
             insert_query = "INSERT INTO dm_orders (order_id, customer_id, product_id, product_name, category_id, category_name, order_date, required_date, shipped_date, shipper_id, freight, unit_price, quantity, discount, company_name, customer_type_id, region_id, territory_id, employee_id, first_name, last_name) VALUES"
             
             while True:
                 rows = [row[0] for row in vertica_cur.fetchall()]
+                print(f"Fetched {len(rows)} rows from Vertica")
+
                 if not rows:
+                    print("No new rows to fetch.")
+
                     break
 
                 clickhouse_cursor.executemany(insert_query, rows)
+                print("Inserted rows into ClickHouse")
+
                 conn.commit()
 
 load_data_task = PythonOperator(

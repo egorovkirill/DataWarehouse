@@ -7,6 +7,7 @@ down:
 	rm -r db/.database
 	rm -r vertica_data/vertica
 	rm -r dags/__pycache__
+	rm -r clickhouse_data/
 	
 hash:
 	docker-compose run migrate migrate hash
